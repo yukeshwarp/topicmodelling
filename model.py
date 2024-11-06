@@ -1,54 +1,43 @@
-from typing import List, Tuple
-import pandas as pd
-from sklearn.decomposition import NMF, LatentDirichletAllocation
+from sklearn.decomposition import LatentDirichletAllocation, NMF
 from sklearn.feature_extraction.text import CountVectorizer
+import pandas as pd
+import numpy as np
 
 class Model:
-    """Class for topic modeling with support for LDA and NMF."""
-    
-    def __init__(self,
-                 num_topics: int,
-                 encoded_docs,
-                 vectorizer: CountVectorizer,
-                 model_type: str = "lda",
-                 random_state: int = 42,
-                 **kwargs):
-        self.model_type = model_type
-        self.encoded_docs = encoded_docs
+    """Class for topic modeling using LDA or NMF."""
+    def __init__(self, num_topics, encoded_docs, vectorizer, model_type="lda", random_state=42):
         self.num_topics = num_topics
+        self.model_type = model_type
         self.vectorizer = vectorizer
 
-        if self.model_type == "lda":
-            self.int_model = LatentDirichletAllocation(
-                n_components=num_topics,
-                random_state=random_state,
-                max_iter=kwargs.get("max_iter", 10)
-            )
-            self.int_model.fit(encoded_docs)
+        if model_type == "lda":
+            self.model = LatentDirichletAllocation(n_components=num_topics, random_state=random_state)
+        elif model_type == "nmf":
+            self.model = NMF(n_components=num_topics, random_state=random_state)
         
-        elif self.model_type == "nmf":
-            self.int_model = NMF(
-                n_components=num_topics,
-                random_state=random_state,
-                max_iter=kwargs.get("max_iter", 10)
-            )
-            self.int_model.fit(encoded_docs)
+        # Fit the model to the document-term matrix
+        self.model.fit(encoded_docs)
 
-    def get_topics(self, num_words: int = 10) -> pd.DataFrame:
-        """Extracts topics with top words."""
+    def get_topics(self, num_words=10):
         feature_names = self.vectorizer.get_feature_names_out()
-        topic_words = []
-        for idx, topic in enumerate(self.int_model.components_):
-            topic_words.extend(
-                [[idx, feature_names[i], topic[i]] for i in topic.argsort()[:-num_words - 1:-1]]
-            )
-        return pd.DataFrame(topic_words, columns=["Topic", "Word", "Weight"])
+        topics = []
 
-    def get_topic_probs(self):
-        """Get topic probabilities for each document."""
-        return self.int_model.transform(self.encoded_docs)
+        for topic_idx, topic in enumerate(self.model.components_):
+            topic_terms = [(feature_names[i], topic[i]) for i in topic.argsort()[:-num_words - 1:-1]]
+            topics.append((topic_idx, topic_terms))
 
-    def save(self, path):
-        """Save the model."""
-        from joblib import dump
-        dump(self.int_model, path)
+        topics_df = pd.DataFrame(
+            [[topic_idx, term, weight] for topic_idx, terms in topics for term, weight in terms],
+            columns=["Topic", "Term", "Weight"]
+        )
+        return topics_df
+
+    def get_topic_distribution(self, encoded_docs):
+        # Get the topic distribution for each document
+        return self.model.transform(encoded_docs)
+
+    def get_dominant_topic(self, encoded_docs):
+        topic_distribution = self.get_topic_distribution(encoded_docs)
+        dominant_topics = np.argmax(topic_distribution, axis=1)
+        dominant_scores = topic_distribution[np.arange(len(dominant_topics)), dominant_topics]
+        return dominant_topics, dominant_scores
