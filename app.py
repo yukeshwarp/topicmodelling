@@ -1,7 +1,7 @@
 import streamlit as st
 import fitz  # PyMuPDF for PDF text extraction
+from model import Model
 from sklearn.feature_extraction.text import CountVectorizer
-from model import Model  # Import the modified model class
 
 # Function to extract text from PDF
 def extract_text_from_pdf(file):
@@ -54,6 +54,10 @@ if uploaded_file:
                 topics_df = model.get_topics(num_words=10)
                 st.write("Extracted Topics:")
                 st.write(topics_df)
+                
+                # Get and display the dominant topic in the document
+                dominant_topic, topic_score = model.get_dominant_topic(encoded_docs)
+                st.write(f"Dominant Topic for the Document: Topic {dominant_topic[0]} with Score: {topic_score[0]:.4f}")
         
         except ValueError as e:
             st.error(f"Error processing the document: {e}")
