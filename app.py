@@ -12,7 +12,7 @@ model = "GPT-4Omni"  # Replace with your actual model
 api_version = "2024-10-01-preview"  # Replace with your Azure API version
 headers = {
     "Content-Type": "application/json",
-    "Authorization": "fcb2ce5dc289487fad0f6674a0b35312"  # Replace with your actual API key
+    "Authorization": "Bearer fcb2ce5dc289487fad0f6674a0b35312"# Replace with your actual API key
 }
 
 # Set up logging
