@@ -12,3 +12,4 @@ fitz
 matplotlib
 seaborn
 transformers
+PyPDF2
