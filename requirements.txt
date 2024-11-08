@@ -11,3 +11,4 @@ pymupdf
 fitz
 matplotlib
 seaborn
+transformers
