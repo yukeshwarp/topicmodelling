@@ -3,24 +3,20 @@ import requests
 import logging
 import time
 import random
-from transformers import pipeline
 from PyPDF2 import PdfReader
 import re
 
 # Azure OpenAI API configuration
 azure_endpoint = "https://uswest3daniel.openai.azure.com"
-model = "GPT-4Omni" # Replace with your actual model
+model = "GPT-4Omni"  # Replace with your actual model
 api_version = "2024-10-01-preview"  # Replace with your Azure API version
 headers = {
     "Content-Type": "application/json",
-    "Authorization": "fcb2ce5dc289487fad0f6674a0b35312"
+    "Authorization": "fcb2ce5dc289487fad0f6674a0b35312"  # Replace with your actual API key
 }
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
-
-# Extractive summarization model using BERT
-extractive_summarizer = pipeline("summarization", model="bert-base-uncased")
 
 def preprocess_text(text):
     return re.sub(r'\s+', ' ', text).strip()
@@ -30,17 +26,13 @@ def summarize_page_for_topics(page_text, previous_summary, page_number, system_p
     preprocessed_page_text = preprocess_text(page_text)
     preprocessed_previous_summary = preprocess_text(previous_summary)
 
-    # Extractive summarization
-    extractive_summary = extractive_summarizer(preprocessed_page_text, max_length=150, min_length=30, do_sample=False)
-    extractive_summary_text = extractive_summary[0]["summary_text"]
-
-    # API request data with prompt
+    # Combine current page text with previous summary
     prompt_message = (
         f"Please rewrite the following page content from (Page {page_number}) along with context from the previous page summary "
         f"to make them concise and well-structured. Maintain proper listing and referencing of the contents if present. "
         f"Do not add any new information or make assumptions. Keep the meaning accurate and the language clear.\n\n"
         f"Previous page summary: {preprocessed_previous_summary}\n\n"
-        f"Extracted key sentences:\n{extractive_summary_text}\n"
+        f"Current page content:\n{preprocessed_page_text}\n"
     )
 
     data = {
@@ -55,6 +47,7 @@ def summarize_page_for_topics(page_text, previous_summary, page_number, system_p
     attempt = 0
     while attempt < max_retries:
         try:
+            # Sending request to Azure OpenAI API for summarization
             response = requests.post(
                 f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
                 headers=headers,
