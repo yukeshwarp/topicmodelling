@@ -11,3 +11,9 @@ streamlit
 pymupdf
 gensim
 scikit-learn
+streamlit
+fitz
+sklearn
+pyLDAvis
+matplotlib
+seaborn
