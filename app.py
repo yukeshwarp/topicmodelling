@@ -9,11 +9,9 @@ import re
 # Azure OpenAI API configuration
 azure_endpoint = "https://uswest3daniel.openai.azure.com"
 model = "GPT-4Omni"  # Replace with your actual model
-api_version = "2024-10-01-preview"  # Replace with your Azure API version
-headers = {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer fcb2ce5dc289487fad0f6674a0b35312"# Replace with your actual API key
-}
+api_version = "2024-10-01-preview"
+api_key = "fcb2ce5dc289487fad0f6674a0b35312" # Replace with your Azure API version
+HEADERS = {"Content-Type": "application/json", "api-key": api_key}
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -50,7 +48,7 @@ def summarize_page_for_topics(page_text, previous_summary, page_number, system_p
             # Sending request to Azure OpenAI API for summarization
             response = requests.post(
                 f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
-                headers=headers,
+                headers=HEADERS,
                 json=data,
                 timeout=50,
             )
