@@ -9,6 +9,5 @@ transformers
 sentence-transformers
 pymupdf
 fitz
-pyLDAvis
 matplotlib
 seaborn
