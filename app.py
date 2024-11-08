@@ -23,8 +23,55 @@ logging.basicConfig(level=logging.INFO)
 def preprocess_text(text):
     return re.sub(r'\s+', ' ', text).strip()
 
-def summarize_page_for_topics(page_text, previous_summary, page_number, system_prompt,
-                              max_retries=5, base_delay=1, max_delay=32):
+def extractive_summarization(page_text, page_number, system_prompt, max_retries=5, base_delay=1, max_delay=32):
+    # For extractive summarization, we'll simply ask the model to identify key points
+    prompt_message = (
+        f"Please extract the key points from the following content on Page {page_number}. "
+        f"Maintain the original meaning and structure, but only include the most important information.\n\n"
+        f"Content: {page_text}\n"
+    )
+
+    data = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt_message},
+        ],
+        "temperature": 0.5,
+    }
+
+    attempt = 0
+    while attempt < max_retries:
+        try:
+            # Sending request to Azure OpenAI API for extractive summarization
+            response = requests.post(
+                f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
+                headers=HEADERS,
+                json=data,
+                timeout=50,
+            )
+            response.raise_for_status()
+            logging.info(f"Extracted key points for page {page_number}")
+            return (
+                response.json()
+                .get("choices", [{}])[0]
+                .get("message", {})
+                .get("content", "No extractive summary provided.")
+                .strip()
+            )
+
+        except requests.exceptions.RequestException as e:
+            attempt += 1
+            if attempt >= max_retries:
+                logging.error(f"Error in extractive summarization for page {page_number}: {e}")
+                return f"Error: Unable to extract key points for page {page_number} due to network issues or API error."
+
+            delay = min(max_delay, base_delay * (2 ** attempt))
+            jitter = random.uniform(0, delay)
+            logging.warning(f"Retrying in {jitter:.2f} seconds (attempt {attempt}) due to error: {e}")
+            time.sleep(jitter)
+
+def abstractive_summarization(page_text, previous_summary, page_number, system_prompt, max_retries=5, base_delay=1, max_delay=32):
     preprocessed_page_text = preprocess_text(page_text)
     preprocessed_previous_summary = preprocess_text(previous_summary)
 
@@ -49,7 +96,7 @@ def summarize_page_for_topics(page_text, previous_summary, page_number, system_p
     attempt = 0
     while attempt < max_retries:
         try:
-            # Sending request to Azure OpenAI API for summarization
+            # Sending request to Azure OpenAI API for abstractive summarization
             response = requests.post(
                 f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
                 headers=HEADERS,
@@ -128,15 +175,23 @@ if uploaded_pdf:
     full_text = []
     for page_number, page_text in enumerate(pdf_pages, start=1):
         with st.spinner(f"Summarizing page {page_number}..."):
-            page_summary = summarize_page_for_topics(
+            extractive_summary = extractive_summarization(
+                page_text,
+                page_number,
+                system_prompt
+            )
+            abstractive_summary = abstractive_summarization(
                 page_text,
                 previous_summary,
                 page_number,
                 system_prompt
             )
             st.subheader(f"Page {page_number}")
-            st.write(page_summary)
-            previous_summary = page_summary  # Update previous summary for context in next page
+            st.write("### Extractive Summary")
+            st.write(extractive_summary)
+            st.write("### Abstractive Summary")
+            st.write(abstractive_summary)
+            previous_summary = abstractive_summary  # Update previous summary for context in next page
             full_text.append(page_text)  # Add page text for topic modeling
     
     st.success("All pages summarized successfully.")
