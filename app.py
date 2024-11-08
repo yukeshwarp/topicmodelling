@@ -5,12 +5,16 @@ import time
 import random
 from PyPDF2 import PdfReader
 import re
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import NMF
 
 # Azure OpenAI API configuration
 azure_endpoint = "https://uswest3daniel.openai.azure.com"
 model = "GPT-4Omni"  # Replace with your actual model
 api_version = "2024-10-01-preview"
-api_key = "fcb2ce5dc289487fad0f6674a0b35312" # Replace with your Azure API version
+api_key = "fcb2ce5dc289487fad0f6674a0b35312" # Replace with your Azure API key
 HEADERS = {"Content-Type": "application/json", "api-key": api_key}
 
 # Set up logging
@@ -82,6 +86,31 @@ def extract_text_from_pdf(pdf_file):
             text_by_page.append(page_text)
     return text_by_page
 
+# Topic Modeling with NMF
+def extract_topics_from_text(texts, num_topics=5, num_words=10):
+    vectorizer = TfidfVectorizer(stop_words='english')
+    X = vectorizer.fit_transform(texts)
+    
+    nmf = NMF(n_components=num_topics, random_state=42)
+    nmf.fit(X)
+    
+    feature_names = np.array(vectorizer.get_feature_names_out())
+    topics = []
+    for topic_idx, topic in enumerate(nmf.components_):
+        top_words_idx = topic.argsort()[:-num_words - 1:-1]
+        top_words = feature_names[top_words_idx]
+        topics.append(" ".join(top_words))
+    
+    return topics, nmf.transform(X)
+
+def plot_topic_distribution(topic_probabilities, num_topics):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar(range(num_topics), topic_probabilities, color='skyblue')
+    ax.set_xlabel('Topic')
+    ax.set_ylabel('Probability')
+    ax.set_title('Topic Distribution across Pages')
+    st.pyplot(fig)
+
 # Streamlit app UI
 st.title("Hybrid Summarization and Topic Extraction App")
 
@@ -95,6 +124,8 @@ if uploaded_pdf:
     st.write("### Extracted Topics and Summaries by Page")
     previous_summary = ""  # Initialize previous summary as empty
 
+    # Collect text for topic modeling
+    full_text = []
     for page_number, page_text in enumerate(pdf_pages, start=1):
         with st.spinner(f"Summarizing page {page_number}..."):
             page_summary = summarize_page_for_topics(
@@ -106,5 +137,16 @@ if uploaded_pdf:
             st.subheader(f"Page {page_number}")
             st.write(page_summary)
             previous_summary = page_summary  # Update previous summary for context in next page
-
+            full_text.append(page_text)  # Add page text for topic modeling
+    
     st.success("All pages summarized successfully.")
+    
+    # Perform topic modeling on the entire document
+    topics, topic_probabilities = extract_topics_from_text(full_text, num_topics=5, num_words=10)
+    
+    st.write("### Identified Topics")
+    for idx, topic in enumerate(topics):
+        st.write(f"**Topic {idx+1}:** {topic}")
+    
+    # Plot topic distribution across the document
+    plot_topic_distribution(topic_probabilities.mean(axis=0), num_topics=5)
