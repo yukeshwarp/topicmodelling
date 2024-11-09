@@ -6,7 +6,9 @@ import random
 from PyPDF2 import PdfReader
 import re
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import NMF
 
@@ -24,7 +26,6 @@ def preprocess_text(text):
     return re.sub(r'\s+', ' ', text).strip()
 
 def extractive_summarization(page_text, page_number, system_prompt, max_retries=5, base_delay=1, max_delay=32):
-    # For extractive summarization, we'll simply ask the model to identify key points
     prompt_message = (
         f"Please extract the key points from the following content on Page {page_number}. "
         f"Maintain the original meaning and structure, but only include the most important information.\n\n"
@@ -43,7 +44,6 @@ def extractive_summarization(page_text, page_number, system_prompt, max_retries=
     attempt = 0
     while attempt < max_retries:
         try:
-            # Sending request to Azure OpenAI API for extractive summarization
             response = requests.post(
                 f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
                 headers=HEADERS,
@@ -75,7 +75,6 @@ def abstractive_summarization(page_text, previous_summary, page_number, system_p
     preprocessed_page_text = preprocess_text(page_text)
     preprocessed_previous_summary = preprocess_text(previous_summary)
 
-    # Combine current page text with previous summary
     prompt_message = (
         f"Please rewrite the following page content from (Page {page_number}) along with context from the previous page summary "
         f"to make them concise and well-structured. Maintain proper listing and referencing of the contents if present. "
@@ -96,7 +95,6 @@ def abstractive_summarization(page_text, previous_summary, page_number, system_p
     attempt = 0
     while attempt < max_retries:
         try:
-            # Sending request to Azure OpenAI API for abstractive summarization
             response = requests.post(
                 f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
                 headers=HEADERS,
@@ -158,6 +156,16 @@ def plot_topic_distribution(topic_probabilities, num_topics):
     ax.set_title('Topic Distribution across Pages')
     st.pyplot(fig)
 
+def plot_confusion_matrix_like_heatmap(topic_probabilities):
+    topic_prob_df = pd.DataFrame(topic_probabilities, columns=[f'Topic {i+1}' for i in range(topic_probabilities.shape[1])])
+    
+    plt.figure(figsize=(12, 8))
+    sns.heatmap(topic_prob_df, annot=True, fmt=".2f", cmap="YlGnBu", cbar=True)
+    plt.title("Topic Distribution across Pages (Confusion Matrix Style)")
+    plt.xlabel("Topics")
+    plt.ylabel("Pages")
+    st.pyplot(plt.gcf())
+
 # Streamlit app UI
 st.title("Hybrid Summarization and Topic Extraction App")
 
@@ -166,12 +174,10 @@ system_prompt = st.text_area("Enter system prompt for the model:",
                              "Summarize the document contents in a concise, structured manner.")
 
 if uploaded_pdf:
-    # Extract text from uploaded PDF
     pdf_pages = extract_text_from_pdf(uploaded_pdf)
     st.write("### Extracted Topics and Summaries by Page")
-    previous_summary = ""  # Initialize previous summary as empty
+    previous_summary = ""
 
-    # Collect text for topic modeling
     full_text = []
     for page_number, page_text in enumerate(pdf_pages, start=1):
         with st.spinner(f"Summarizing page {page_number}..."):
@@ -191,17 +197,18 @@ if uploaded_pdf:
             st.write(extractive_summary)
             st.write("### Abstractive Summary")
             st.write(abstractive_summary)
-            previous_summary = abstractive_summary  # Update previous summary for context in next page
-            full_text.append(page_text)  # Add page text for topic modeling
+            previous_summary = abstractive_summary
+            full_text.append(page_text)
     
     st.success("All pages summarized successfully.")
     
-    # Perform topic modeling on the entire document
     topics, topic_probabilities = extract_topics_from_text(full_text, num_topics=5, num_words=10)
     
     st.write("### Identified Topics")
     for idx, topic in enumerate(topics):
         st.write(f"**Topic {idx+1}:** {topic}")
     
-    # Plot topic distribution across the document
     plot_topic_distribution(topic_probabilities.mean(axis=0), num_topics=5)
+    
+    st.write("### Topic Distribution across Pages (Confusion Matrix Style)")
+    plot_confusion_matrix_like_heatmap(topic_probabilities)
